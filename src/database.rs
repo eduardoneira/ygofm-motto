@@ -1,9 +1,8 @@
-use std::fmt::Write;
-
 use serde::de::DeserializeOwned;
 
-use crate::card::{Card, Duelist, DuelistDeckEntry, DuelistDropEntry, Equip, Fusion, Ritual};
-use crate::labels::{attribute_name, card_type_name, guardian_star_name};
+use crate::card::{
+    Card, DropRank, Duelist, DuelistDeckEntry, DuelistDropEntry, Equip, Fusion, Ritual,
+};
 
 pub const CARDS_CSV: &str = include_str!("../data/cards.csv");
 pub const FUSIONS_CSV: &str = include_str!("../data/fusions.csv");
@@ -150,7 +149,7 @@ impl CardDatabase {
         drop_entries
     }
 
-    pub fn duelist_drops_for_rank(&self, duelist_id: u8, rank: &str) -> Vec<&DuelistDropEntry> {
+    pub fn duelist_drops_for_rank(&self, duelist_id: u8, rank: DropRank) -> Vec<&DuelistDropEntry> {
         let mut drop_entries = self
             .duelist_drops
             .iter()
@@ -184,176 +183,6 @@ impl CardDatabase {
 
         drop_entries
     }
-
-    pub fn format_card_details(&self, card: &Card) -> String {
-        let mut output = String::new();
-
-        let _ = writeln!(output, "Card #{:03} - {}", card.id, card.name);
-        let _ = writeln!(
-            output,
-            "Type: {} ({})",
-            card_type_name(card.card_type),
-            card.card_type
-        );
-        let _ = writeln!(
-            output,
-            "Attribute: {} ({})",
-            attribute_name(card.attribute),
-            card.attribute
-        );
-        let _ = writeln!(
-            output,
-            "Guardian stars: {} ({}) / {} ({})",
-            guardian_star_name(card.guardian_star_a),
-            card.guardian_star_a,
-            guardian_star_name(card.guardian_star_b),
-            card.guardian_star_b
-        );
-        let _ = writeln!(output, "ATK / DEF: {} / {}", card.attack, card.defense);
-        let _ = writeln!(output, "Password: {}", card.card_code);
-        let _ = writeln!(output, "Starchip cost: {}", card.starchip_cost);
-
-        let equip_targets = self.equip_targets_for(card.id);
-        if equip_targets.is_empty() {
-            let _ = writeln!(output, "Equip targets: none");
-        } else {
-            let _ = writeln!(output, "Equip targets ({}):", equip_targets.len());
-            for target in equip_targets {
-                let _ = writeln!(output, "  - {}", self.describe_card_ref(target));
-            }
-        };
-
-        let fusions = self.fusions_for(card.id);
-        if fusions.is_empty() {
-            let _ = writeln!(output, "Fusions: none");
-        } else {
-            let _ = writeln!(output, "Fusions ({}):", fusions.len());
-            for fusion in fusions {
-                let _ = writeln!(
-                    output,
-                    "  - {} + {} => {}",
-                    self.describe_card_ref(fusion.card1),
-                    self.describe_card_ref(fusion.card2),
-                    self.describe_card_ref(fusion.result)
-                );
-            }
-        }
-
-        let rituals = self.rituals_for(card.id);
-        if rituals.is_empty() {
-            let _ = writeln!(output, "Rituals: none");
-        } else {
-            let _ = writeln!(output, "Rituals ({}):", rituals.len());
-            for ritual in rituals {
-                let _ = writeln!(
-                    output,
-                    "  - {} + {} + {} with {} => {}",
-                    self.describe_card_ref(ritual.card1),
-                    self.describe_card_ref(ritual.card2),
-                    self.describe_card_ref(ritual.card3),
-                    self.describe_card_ref(ritual.ritual_card),
-                    self.describe_card_ref(ritual.result)
-                );
-            }
-        }
-
-        let drops = self.drops_for_card(card.id);
-        if drops.is_empty() {
-            let _ = writeln!(output, "Drops: none");
-        } else {
-            let _ = writeln!(output, "Drops ({}):", drops.len());
-            for entry in drops {
-                let _ = writeln!(
-                    output,
-                    "  - {} {}: {:.2}% (weight {})",
-                    self.describe_duelist_ref(entry.duelist_id),
-                    entry.rank_label(),
-                    entry.odds_percent(),
-                    entry.weight
-                );
-            }
-        }
-
-        let opponent_decks = self.opponent_decks_for_card(card.id);
-        if opponent_decks.is_empty() {
-            let _ = writeln!(output, "Opponent decks: none");
-        } else {
-            let _ = writeln!(output, "Opponent decks ({}):", opponent_decks.len());
-            for entry in opponent_decks {
-                let _ = writeln!(
-                    output,
-                    "  - {}: {:.2}% (weight {})",
-                    self.describe_duelist_ref(entry.duelist_id),
-                    entry.odds_percent(),
-                    entry.weight
-                );
-            }
-        }
-
-        output
-    }
-
-    pub fn format_duelist_details(&self, duelist: &Duelist) -> String {
-        let mut output = String::new();
-        let deck = self.duelist_deck(duelist.id);
-        let drops = self.duelist_drops(duelist.id);
-
-        let _ = writeln!(output, "Duelist #{:02} - {}", duelist.id, duelist.name);
-        let _ = writeln!(output, "Hand size: {}", duelist.hand_size);
-        let _ = writeln!(output, "Deck pool ({} cards):", deck.len());
-
-        for entry in deck {
-            let _ = writeln!(
-                output,
-                "  - {}: {:.2}% (weight {})",
-                self.describe_card_ref(entry.card_id),
-                entry.odds_percent(),
-                entry.weight
-            );
-        }
-
-        let _ = writeln!(output, "Drop pools ({} cards):", drops.len());
-        for rank in ["SAPow", "BCD", "SATec"] {
-            let rank_entries = self.duelist_drops_for_rank(duelist.id, rank);
-            if rank_entries.is_empty() {
-                continue;
-            }
-
-            let _ = writeln!(
-                output,
-                "{} ({} cards):",
-                rank_entries[0].rank_label(),
-                rank_entries.len()
-            );
-            for entry in rank_entries {
-                let _ = writeln!(
-                    output,
-                    "  - {}: {:.2}% (weight {})",
-                    self.describe_card_ref(entry.card_id),
-                    entry.odds_percent(),
-                    entry.weight
-                );
-            }
-        }
-
-        output
-    }
-
-    pub fn format_duelist_deck(&self, duelist: &Duelist) -> String {
-        self.format_duelist_details(duelist)
-    }
-
-    fn describe_card_ref(&self, id: u16) -> String {
-        self.card(id)
-            .map(|card| format!("#{:03} {}", card.id, card.name))
-            .unwrap_or_else(|| format!("#{id:03} <unknown>"))
-    }
-
-    fn describe_duelist_ref(&self, id: u8) -> String {
-        self.duelist(id)
-            .map(|duelist| format!("#{:02} {}", duelist.id, duelist.name))
-            .unwrap_or_else(|| format!("#{id:02} <unknown>"))
-    }
 }
 
 fn parse_csv<T>(csv_data: &str) -> Result<Vec<T>, csv::Error>
@@ -367,6 +196,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::labels::card_type_name;
 
     #[test]
     fn loads_all_cards_from_bundled_csv_tables() {
@@ -464,7 +295,7 @@ mod tests {
         let simon_drops = database.duelist_drops(1);
         assert_eq!(simon_drops.len(), 139);
 
-        let simon_pow_drops = database.duelist_drops_for_rank(1, "SAPow");
+        let simon_pow_drops = database.duelist_drops_for_rank(1, DropRank::SAPow);
         assert_eq!(simon_pow_drops.len(), 47);
         assert_eq!(
             simon_pow_drops
@@ -483,7 +314,7 @@ mod tests {
         assert!(
             shadow_specter_drops
                 .iter()
-                .any(|entry| entry.duelist_id == 1 && entry.rank == "SAPow")
+                .any(|entry| entry.duelist_id == 1 && entry.rank == DropRank::SAPow)
         );
     }
 
@@ -514,25 +345,28 @@ mod tests {
                 );
             }
 
-            for rank in ["SAPow", "BCD", "SATec"] {
+            for rank in DropRank::ALL {
                 let drops = database.duelist_drops_for_rank(duelist.id, rank);
                 assert!(
                     !drops.is_empty(),
-                    "{} should have {rank} drop entries",
-                    duelist.name
+                    "{} should have {} drop entries",
+                    duelist.name,
+                    rank.label()
                 );
                 assert_eq!(
                     drops.iter().map(|entry| entry.weight).sum::<u16>(),
                     DuelistDropEntry::WEIGHT_DENOMINATOR,
-                    "{} {rank} drop weights should total 2048",
-                    duelist.name
+                    "{} {} drop weights should total 2048",
+                    duelist.name,
+                    rank.label()
                 );
 
                 for entry in drops {
                     assert!(
                         database.card(entry.card_id).is_some(),
-                        "{} {rank} drops reference unknown card #{}",
+                        "{} {} drops reference unknown card #{}",
                         duelist.name,
+                        rank.label(),
                         entry.card_id
                     );
                 }

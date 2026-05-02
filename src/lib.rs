@@ -1,9 +1,10 @@
 mod card;
 mod database;
+mod format;
 mod labels;
 
 pub use card::{
-    Card, Duelist, DuelistDeckEntry, DuelistDropEntry, Equip, Fusion, Ritual, rank_label,
+    Card, DropRank, Duelist, DuelistDeckEntry, DuelistDropEntry, Equip, Fusion, Ritual, rank_label,
     rank_sort_key,
 };
 pub use database::{
