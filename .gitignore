@@ -1,0 +1,9 @@
+# Rust build output
+/target/
+
+# macOS
+.DS_Store
+
+# Editor folders, optional
+.vscode/
+.idea/
