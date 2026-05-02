@@ -36,3 +36,25 @@ pub struct Ritual {
     pub card3: u16,
     pub result: u16,
 }
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct Duelist {
+    pub id: u8,
+    pub name: String,
+    pub hand_size: u8,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct DuelistDeckEntry {
+    pub duelist_id: u8,
+    pub card_id: u16,
+    pub weight: u16,
+}
+
+impl DuelistDeckEntry {
+    pub const WEIGHT_DENOMINATOR: u16 = 2048;
+
+    pub fn odds_percent(&self) -> f64 {
+        f64::from(self.weight) / f64::from(Self::WEIGHT_DENOMINATOR) * 100.0
+    }
+}
