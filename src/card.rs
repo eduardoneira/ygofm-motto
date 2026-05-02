@@ -58,3 +58,45 @@ impl DuelistDeckEntry {
         f64::from(self.weight) / f64::from(Self::WEIGHT_DENOMINATOR) * 100.0
     }
 }
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct DuelistDropEntry {
+    pub duelist_id: u8,
+    pub rank: String,
+    pub card_id: u16,
+    pub weight: u16,
+}
+
+impl DuelistDropEntry {
+    pub const WEIGHT_DENOMINATOR: u16 = 2048;
+
+    pub fn odds_percent(&self) -> f64 {
+        f64::from(self.weight) / f64::from(Self::WEIGHT_DENOMINATOR) * 100.0
+    }
+
+    pub fn rank_label(&self) -> &'static str {
+        rank_label(&self.rank)
+    }
+
+    pub fn rank_sort_key(&self) -> u8 {
+        rank_sort_key(&self.rank)
+    }
+}
+
+pub fn rank_label(rank: &str) -> &'static str {
+    match rank {
+        "SAPow" => "S/A POW",
+        "BCD" => "B/C/D",
+        "SATec" => "S/A TEC",
+        _ => "Unknown",
+    }
+}
+
+pub fn rank_sort_key(rank: &str) -> u8 {
+    match rank {
+        "SAPow" => 0,
+        "BCD" => 1,
+        "SATec" => 2,
+        _ => u8::MAX,
+    }
+}

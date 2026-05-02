@@ -11,10 +11,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         database.len(),
         database.duelists().len()
     );
-    println!("Enter a card number from 1 to 722, duelist <number>, duelists, or q to quit.");
+    print_help();
 
     loop {
-        print!("card> ");
+        print!("command> ");
         io::stdout().flush()?;
 
         let mut input = String::new();
@@ -25,53 +25,68 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
 
         let input = input.trim();
-        if input.eq_ignore_ascii_case("q") || input.eq_ignore_ascii_case("quit") {
+        if input == "q" {
             break;
         }
 
-        if input.eq_ignore_ascii_case("duelists") {
-            for duelist in database.duelists() {
-                println!("#{:02} {}", duelist.id, duelist.name);
-            }
+        if input == "help" {
+            print_help();
             continue;
         }
 
-        if let Some(duelist_input) = input
-            .strip_prefix("duelist ")
-            .or_else(|| input.strip_prefix("d "))
-        {
-            let duelist_number = match duelist_input.trim().parse::<u8>() {
-                Ok(duelist_number) => duelist_number,
-                Err(_) => {
-                    println!("Please enter a duelist number from 1 to 39.");
-                    continue;
+        let parts = input.split_whitespace().collect::<Vec<_>>();
+        match parts.as_slice() {
+            ["duelists"] => {
+                for duelist in database.duelists() {
+                    println!("#{:02} {}", duelist.id, duelist.name);
                 }
-            };
-
-            match database.duelist(duelist_number) {
-                Some(duelist) => println!("{}", database.format_duelist_deck(duelist)),
-                None => println!(
-                    "No duelist found for #{duelist_number:02}. Try a number from 1 to 39."
-                ),
             }
-            continue;
-        }
+            ["card", card_input] => {
+                let card_number = match card_input.parse::<u16>() {
+                    Ok(card_number) => card_number,
+                    Err(_) => {
+                        println!("Please enter a card number from 1 to 722.");
+                        continue;
+                    }
+                };
 
-        let card_number = match input.parse::<u16>() {
-            Ok(card_number) => card_number,
-            Err(_) => {
-                println!(
-                    "Please enter a card number from 1 to 722, duelist <number>, duelists, or q to quit."
-                );
-                continue;
+                match database.card(card_number) {
+                    Some(card) => println!("{}", database.format_card_details(card)),
+                    None => {
+                        println!("No card found for #{card_number:03}. Try a number from 1 to 722.")
+                    }
+                }
             }
-        };
+            ["duelist", duelist_input] => {
+                let duelist_number = match duelist_input.parse::<u8>() {
+                    Ok(duelist_number) => duelist_number,
+                    Err(_) => {
+                        println!("Please enter a duelist number from 1 to 39.");
+                        continue;
+                    }
+                };
 
-        match database.card(card_number) {
-            Some(card) => println!("{}", database.format_card_details(card)),
-            None => println!("No card found for #{card_number:03}. Try a number from 1 to 722."),
+                match database.duelist(duelist_number) {
+                    Some(duelist) => println!("{}", database.format_duelist_details(duelist)),
+                    None => println!(
+                        "No duelist found for #{duelist_number:02}. Try a number from 1 to 39."
+                    ),
+                }
+            }
+            _ => {
+                println!("Unknown command.");
+                print_help();
+            }
         }
     }
 
     Ok(())
+}
+
+fn print_help() {
+    println!("Commands:");
+    println!("  card <number>     Show card details, for example card 35");
+    println!("  duelist <number>  Show opponent deck and drop pools, for example duelist 1");
+    println!("  duelists          List all duelists");
+    println!("  q                 Quit");
 }

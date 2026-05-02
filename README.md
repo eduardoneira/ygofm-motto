@@ -10,12 +10,12 @@ Run the first card lookup app with:
 cargo run
 ```
 
-Then enter a Forbidden Memories card number from `1` to `722`, or use:
+Then use one of the console commands:
 
 ```text
 duelists
 duelist 1
-d 1
+card 35
 ```
 
 ## Data
@@ -28,6 +28,7 @@ Card data is normalized across CSV tables:
 - `data/rituals.csv`: ritual recipes and their result card.
 - `data/duelists.csv`: opponent identity and hand size.
 - `data/duelist_decks.csv`: opponent deck pools as raw weights out of `2048`.
+- `data/duelist_drops.csv`: opponent drop pools by rank as raw weights out of `2048`.
 
 Run tests with:
 

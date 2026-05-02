@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use serde::de::DeserializeOwned;
 
-use crate::card::{Card, Duelist, DuelistDeckEntry, Equip, Fusion, Ritual};
+use crate::card::{Card, Duelist, DuelistDeckEntry, DuelistDropEntry, Equip, Fusion, Ritual};
 use crate::labels::{attribute_name, card_type_name, guardian_star_name};
 
 pub const CARDS_CSV: &str = include_str!("../data/cards.csv");
@@ -11,6 +11,7 @@ pub const EQUIPS_CSV: &str = include_str!("../data/equips.csv");
 pub const RITUALS_CSV: &str = include_str!("../data/rituals.csv");
 pub const DUELISTS_CSV: &str = include_str!("../data/duelists.csv");
 pub const DUELIST_DECKS_CSV: &str = include_str!("../data/duelist_decks.csv");
+pub const DUELIST_DROPS_CSV: &str = include_str!("../data/duelist_drops.csv");
 
 #[derive(Debug, Clone)]
 pub struct CardDatabase {
@@ -20,6 +21,7 @@ pub struct CardDatabase {
     rituals: Vec<Ritual>,
     duelists: Vec<Duelist>,
     duelist_decks: Vec<DuelistDeckEntry>,
+    duelist_drops: Vec<DuelistDropEntry>,
 }
 
 impl CardDatabase {
@@ -30,6 +32,7 @@ impl CardDatabase {
         rituals_csv: &str,
         duelists_csv: &str,
         duelist_decks_csv: &str,
+        duelist_drops_csv: &str,
     ) -> Result<Self, csv::Error> {
         Ok(Self {
             cards: parse_csv(cards_csv)?,
@@ -38,6 +41,7 @@ impl CardDatabase {
             rituals: parse_csv(rituals_csv)?,
             duelists: parse_csv(duelists_csv)?,
             duelist_decks: parse_csv(duelist_decks_csv)?,
+            duelist_drops: parse_csv(duelist_drops_csv)?,
         })
     }
 
@@ -49,6 +53,7 @@ impl CardDatabase {
             RITUALS_CSV,
             DUELISTS_CSV,
             DUELIST_DECKS_CSV,
+            DUELIST_DROPS_CSV,
         )
     }
 
@@ -128,6 +133,58 @@ impl CardDatabase {
         deck_entries
     }
 
+    pub fn duelist_drops(&self, duelist_id: u8) -> Vec<&DuelistDropEntry> {
+        let mut drop_entries = self
+            .duelist_drops
+            .iter()
+            .filter(|entry| entry.duelist_id == duelist_id)
+            .collect::<Vec<_>>();
+
+        drop_entries.sort_by(|left, right| {
+            left.rank_sort_key()
+                .cmp(&right.rank_sort_key())
+                .then_with(|| right.weight.cmp(&left.weight))
+                .then_with(|| left.card_id.cmp(&right.card_id))
+        });
+
+        drop_entries
+    }
+
+    pub fn duelist_drops_for_rank(&self, duelist_id: u8, rank: &str) -> Vec<&DuelistDropEntry> {
+        let mut drop_entries = self
+            .duelist_drops
+            .iter()
+            .filter(|entry| entry.duelist_id == duelist_id && entry.rank == rank)
+            .collect::<Vec<_>>();
+
+        drop_entries.sort_by(|left, right| {
+            right
+                .weight
+                .cmp(&left.weight)
+                .then_with(|| left.card_id.cmp(&right.card_id))
+        });
+
+        drop_entries
+    }
+
+    pub fn drops_for_card(&self, card_id: u16) -> Vec<&DuelistDropEntry> {
+        let mut drop_entries = self
+            .duelist_drops
+            .iter()
+            .filter(|entry| entry.card_id == card_id)
+            .collect::<Vec<_>>();
+
+        drop_entries.sort_by(|left, right| {
+            right
+                .weight
+                .cmp(&left.weight)
+                .then_with(|| left.duelist_id.cmp(&right.duelist_id))
+                .then_with(|| left.rank_sort_key().cmp(&right.rank_sort_key()))
+        });
+
+        drop_entries
+    }
+
     pub fn format_card_details(&self, card: &Card) -> String {
         let mut output = String::new();
 
@@ -200,6 +257,23 @@ impl CardDatabase {
             }
         }
 
+        let drops = self.drops_for_card(card.id);
+        if drops.is_empty() {
+            let _ = writeln!(output, "Drops: none");
+        } else {
+            let _ = writeln!(output, "Drops ({}):", drops.len());
+            for entry in drops {
+                let _ = writeln!(
+                    output,
+                    "  - {} {}: {:.2}% (weight {})",
+                    self.describe_duelist_ref(entry.duelist_id),
+                    entry.rank_label(),
+                    entry.odds_percent(),
+                    entry.weight
+                );
+            }
+        }
+
         let opponent_decks = self.opponent_decks_for_card(card.id);
         if opponent_decks.is_empty() {
             let _ = writeln!(output, "Opponent decks: none");
@@ -219,9 +293,10 @@ impl CardDatabase {
         output
     }
 
-    pub fn format_duelist_deck(&self, duelist: &Duelist) -> String {
+    pub fn format_duelist_details(&self, duelist: &Duelist) -> String {
         let mut output = String::new();
         let deck = self.duelist_deck(duelist.id);
+        let drops = self.duelist_drops(duelist.id);
 
         let _ = writeln!(output, "Duelist #{:02} - {}", duelist.id, duelist.name);
         let _ = writeln!(output, "Hand size: {}", duelist.hand_size);
@@ -237,7 +312,35 @@ impl CardDatabase {
             );
         }
 
+        let _ = writeln!(output, "Drop pools ({} cards):", drops.len());
+        for rank in ["SAPow", "BCD", "SATec"] {
+            let rank_entries = self.duelist_drops_for_rank(duelist.id, rank);
+            if rank_entries.is_empty() {
+                continue;
+            }
+
+            let _ = writeln!(
+                output,
+                "{} ({} cards):",
+                rank_entries[0].rank_label(),
+                rank_entries.len()
+            );
+            for entry in rank_entries {
+                let _ = writeln!(
+                    output,
+                    "  - {}: {:.2}% (weight {})",
+                    self.describe_card_ref(entry.card_id),
+                    entry.odds_percent(),
+                    entry.weight
+                );
+            }
+        }
+
         output
+    }
+
+    pub fn format_duelist_deck(&self, duelist: &Duelist) -> String {
+        self.format_duelist_details(duelist)
     }
 
     fn describe_card_ref(&self, id: u16) -> String {
@@ -308,6 +411,7 @@ mod tests {
         assert_eq!(database.rituals.len(), 24);
         assert_eq!(database.duelists.len(), 39);
         assert_eq!(database.duelist_decks.len(), 3_681);
+        assert_eq!(database.duelist_drops.len(), 8_666);
 
         let mystical_elf_fusions = database.fusions_for(2);
         assert!(!mystical_elf_fusions.is_empty());
@@ -354,7 +458,37 @@ mod tests {
     }
 
     #[test]
-    fn every_duelist_deck_pool_totals_the_game_weight_denominator() {
+    fn loads_weighted_drop_pools() {
+        let database = CardDatabase::from_bundled_csv().expect("card CSV tables should parse");
+
+        let simon_drops = database.duelist_drops(1);
+        assert_eq!(simon_drops.len(), 139);
+
+        let simon_pow_drops = database.duelist_drops_for_rank(1, "SAPow");
+        assert_eq!(simon_pow_drops.len(), 47);
+        assert_eq!(
+            simon_pow_drops
+                .iter()
+                .map(|entry| entry.weight)
+                .sum::<u16>(),
+            DuelistDropEntry::WEIGHT_DENOMINATOR
+        );
+        assert!(
+            simon_pow_drops
+                .iter()
+                .any(|entry| entry.card_id == 9 && entry.weight == 90)
+        );
+
+        let shadow_specter_drops = database.drops_for_card(9);
+        assert!(
+            shadow_specter_drops
+                .iter()
+                .any(|entry| entry.duelist_id == 1 && entry.rank == "SAPow")
+        );
+    }
+
+    #[test]
+    fn every_duelist_pool_totals_the_game_weight_denominator() {
         let database = CardDatabase::from_bundled_csv().expect("card CSV tables should parse");
 
         for duelist in database.duelists() {
@@ -379,6 +513,30 @@ mod tests {
                     entry.card_id
                 );
             }
+
+            for rank in ["SAPow", "BCD", "SATec"] {
+                let drops = database.duelist_drops_for_rank(duelist.id, rank);
+                assert!(
+                    !drops.is_empty(),
+                    "{} should have {rank} drop entries",
+                    duelist.name
+                );
+                assert_eq!(
+                    drops.iter().map(|entry| entry.weight).sum::<u16>(),
+                    DuelistDropEntry::WEIGHT_DENOMINATOR,
+                    "{} {rank} drop weights should total 2048",
+                    duelist.name
+                );
+
+                for entry in drops {
+                    assert!(
+                        database.card(entry.card_id).is_some(),
+                        "{} {rank} drops reference unknown card #{}",
+                        duelist.name,
+                        entry.card_id
+                    );
+                }
+            }
         }
     }
 
@@ -394,17 +552,21 @@ mod tests {
         assert!(details.contains("Type: Equip (23)"));
         assert!(details.contains("Equip targets ("));
         assert!(details.contains("#015 Flame Swordsman"));
+        assert!(details.contains("Drops ("));
         assert!(details.contains("Opponent decks"));
     }
 
     #[test]
-    fn formats_duelist_decks_with_percentages() {
+    fn formats_duelist_details_with_percentages() {
         let database = CardDatabase::from_bundled_csv().expect("card CSV tables should parse");
         let duelist = database.duelist(1).expect("duelist 1 should exist");
-        let details = database.format_duelist_deck(duelist);
+        let details = database.format_duelist_details(duelist);
 
         assert!(details.contains("Duelist #01 - Simon Muran"));
         assert!(details.contains("Deck pool (32 cards):"));
         assert!(details.contains("#343 Sparks: 4.88% (weight 100)"));
+        assert!(details.contains("Drop pools (139 cards):"));
+        assert!(details.contains("S/A POW (47 cards):"));
+        assert!(details.contains("#009 Shadow Specter: 4.39% (weight 90)"));
     }
 }
