@@ -24,6 +24,12 @@ The tracked cards are configured in `data/tracked_cards.json`:
 Each row in the GUI has a button to add one copy and a button to remove one copy.
 If `assets/cards/NNN.webp` exists for a tracked card number, the GUI displays it in that row.
 
+## Card images
+
+Card images are optional local assets. They are not committed to this repository because
+the images are third-party Yu-Gi-Oh! game/card assets and may not be redistributable.
+The repository only keeps `assets/cards/.gitkeep` so the destination folder exists.
+
 Download or refresh card images with:
 
 ```bash
@@ -33,6 +39,14 @@ python3 scripts/download_card_images.py
 The downloader uses the Yu-Gi-Oh! Wiki / Fandom MediaWiki API, skips existing files,
 waits one second between requests by default, and writes source metadata to
 `assets/cards/sources.json`. Use `--dry-run --limit 3` to test without downloading.
+
+The generated files are intentionally ignored by Git:
+
+- `assets/cards/*.webp`
+- `assets/cards/sources.json`
+
+If you clone the project on another machine, run the downloader again to populate
+the local image cache.
 
 ## Card lookup
 
