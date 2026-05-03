@@ -21,8 +21,8 @@ The tracked cards are configured in `data/tracked_cards.json`:
 }
 ```
 
-Each card in the GUI is shown as an image tile with minus, counter, and plus controls
-below it. Hover the image to show the card name.
+Each card in the GUI is shown as an art-only image tile with minus, counter, and plus
+controls below it. The counter is capped at 3, and hovering the image shows the card name.
 If `assets/cards/NNN.webp` exists for a tracked card number, the GUI displays it.
 
 ## Card images
