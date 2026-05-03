@@ -1,0 +1,9 @@
+{
+  "cards": [
+    { "id": 1, "target": 3 },
+    { "id": 35, "target": 3 },
+    { "id": 44, "target": 3 },
+    { "id": 351, "target": 3 },
+    { "id": 657, "target": 1 }
+  ]
+}

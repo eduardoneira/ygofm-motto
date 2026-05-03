@@ -1,9 +1,19 @@
 use std::error::Error;
 use std::io::{self, Write};
 
+mod gui;
+
 use ygofm_motto::CardDatabase;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    if std::env::args().any(|argument| argument == "--cli") {
+        return run_cli();
+    }
+
+    gui::run_card_tracker()
+}
+
+fn run_cli() -> Result<(), Box<dyn Error>> {
     let database = CardDatabase::from_bundled_csv()?;
 
     println!(

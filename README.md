@@ -1,13 +1,70 @@
 # ygofm-motto
 
-Console tools for simulating Yu-Gi-Oh! Forbidden Memories duels.
+Tools for simulating Yu-Gi-Oh! Forbidden Memories duels.
 
-## Card lookup
+## Card tracker
 
-Run the first card lookup app with:
+Run the card tracker GUI with:
 
 ```bash
 cargo run
+```
+
+The tracked cards are configured in `data/tracked_cards.json`. Create the file with
+this shape, or edit the existing one:
+
+```json
+{
+  "cards": [
+    { "id": 1, "target": 3 },
+    { "id": 35, "label": "Dark Magician copies", "target": 3 }
+  ]
+}
+```
+
+Use card ids from `data/cards.csv`. `label` is optional; when it is missing, the GUI
+uses the card number and card name. `target` is optional and defaults to `3`; it sets
+the maximum value for that card's counter.
+
+The GUI reads `data/tracked_cards.json` when it starts, so save the file and restart
+`cargo run` after changing the tracked cards. If the file is missing, the app falls
+back to the tracked cards bundled at build time.
+
+Each card in the GUI is shown as an art-only image tile with minus, counter, and plus
+controls below it. The counter is capped by the card's `target`, and hovering the image
+shows the card name or custom label.
+If `assets/cards/NNN.webp` exists for a tracked card number, the GUI displays it.
+
+## Card images
+
+Card images are optional local assets. They are not committed to this repository because
+the images are third-party Yu-Gi-Oh! game/card assets and may not be redistributable.
+The repository only keeps `assets/cards/.gitkeep` so the destination folder exists.
+
+Download or refresh card images with:
+
+```bash
+python3 scripts/download_card_images.py
+```
+
+The downloader uses the Yu-Gi-Oh! Wiki / Fandom MediaWiki API, skips existing files,
+waits one second between requests by default, and writes source metadata to
+`assets/cards/sources.json`. Use `--dry-run --limit 3` to test without downloading.
+
+The generated files are intentionally ignored by Git:
+
+- `assets/cards/*.webp`
+- `assets/cards/sources.json`
+
+If you clone the project on another machine, run the downloader again to populate
+the local image cache.
+
+## Card lookup
+
+Run the console lookup app with:
+
+```bash
+cargo run -- --cli
 ```
 
 Then use one of the console commands:
