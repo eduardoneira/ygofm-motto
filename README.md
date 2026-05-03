@@ -21,8 +21,9 @@ The tracked cards are configured in `data/tracked_cards.json`:
 }
 ```
 
-Each row in the GUI has a button to add one copy and a button to remove one copy.
-If `assets/cards/NNN.webp` exists for a tracked card number, the GUI displays it in that row.
+Each card in the GUI is shown as an image tile with minus, counter, and plus controls
+below it. Hover the image to show the card name.
+If `assets/cards/NNN.webp` exists for a tracked card number, the GUI displays it.
 
 ## Card images
 

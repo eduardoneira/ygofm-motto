@@ -6,6 +6,8 @@ use std::io::{self, Write};
 use eframe::egui::{self, TextureHandle};
 use ygofm_motto::{Card, CardDatabase, TrackedCardSpec, bundled_tracked_card_specs};
 
+const CARD_TILE_SIZE: egui::Vec2 = egui::vec2(96.0, 140.0);
+
 fn main() -> Result<(), Box<dyn Error>> {
     if std::env::args().any(|argument| argument == "--cli") {
         return run_cli();
@@ -127,42 +129,79 @@ impl eframe::App for CardTrackerApp {
             self.ensure_card_images_loaded(context);
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                egui::Grid::new("tracked_cards_grid")
-                    .num_columns(4)
-                    .spacing([16.0, 10.0])
-                    .striped(true)
-                    .show(ui, |ui| {
-                        for tracked_card in &mut self.tracked_cards {
-                            let title = tracked_card.title();
-                            if let Some(Some(texture)) = self.card_images.get(&tracked_card.card.id)
-                            {
-                                ui.image((texture.id(), egui::vec2(42.0, 60.0)));
-                            } else {
-                                ui.allocate_exact_size(
-                                    egui::vec2(42.0, 60.0),
-                                    egui::Sense::hover(),
-                                );
-                            }
-                            ui.label(title);
-                            ui.label(tracked_card.count.to_string());
-                            ui.horizontal(|ui| {
-                                if ui
-                                    .add_enabled(tracked_card.count > 0, egui::Button::new("-"))
-                                    .clicked()
-                                {
-                                    tracked_card.count -= 1;
-                                }
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(14.0, 14.0);
 
-                                if ui.button("+").clicked() {
-                                    tracked_card.count += 1;
-                                }
-                            });
-                            ui.end_row();
-                        }
-                    });
+                    for tracked_card in &mut self.tracked_cards {
+                        let title = tracked_card.title();
+                        let texture = self
+                            .card_images
+                            .get(&tracked_card.card.id)
+                            .and_then(Option::as_ref);
+                        draw_card_control(ui, texture, tracked_card, title);
+                    }
+                });
             });
         });
     }
+}
+
+fn draw_card_control(
+    ui: &mut egui::Ui,
+    texture: Option<&TextureHandle>,
+    tracked_card: &mut TrackedCard,
+    title: String,
+) {
+    ui.vertical(|ui| {
+        let response = draw_card_tile(ui, texture, tracked_card);
+        response.on_hover_text(title);
+
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(tracked_card.count > 0, egui::Button::new("-"))
+                .clicked()
+            {
+                tracked_card.count -= 1;
+            }
+
+            ui.label(tracked_card.count_label());
+
+            if ui.button("+").clicked() {
+                tracked_card.count += 1;
+            }
+        });
+    });
+}
+
+fn draw_card_tile(
+    ui: &mut egui::Ui,
+    texture: Option<&TextureHandle>,
+    tracked_card: &TrackedCard,
+) -> egui::Response {
+    let response = match texture {
+        Some(texture) => ui.add(egui::Image::new((texture.id(), CARD_TILE_SIZE))),
+        None => {
+            let (rect, response) = ui.allocate_exact_size(CARD_TILE_SIZE, egui::Sense::hover());
+            ui.painter()
+                .rect_filled(rect, 4.0, ui.visuals().faint_bg_color);
+            ui.painter().rect_stroke(
+                rect,
+                4.0,
+                egui::Stroke::new(1.0, ui.visuals().widgets.noninteractive.bg_stroke.color),
+                egui::StrokeKind::Inside,
+            );
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                format!("#{:03}", tracked_card.card.id),
+                egui::TextStyle::Button.resolve(ui.style()),
+                ui.visuals().weak_text_color(),
+            );
+            response
+        }
+    };
+
+    response
 }
 
 fn load_card_image(context: &egui::Context, card_id: u16) -> Option<TextureHandle> {
@@ -186,6 +225,13 @@ impl TrackedCard {
             .label
             .clone()
             .unwrap_or_else(|| format!("#{:03} {}", self.card.id, self.card.name))
+    }
+
+    fn count_label(&self) -> String {
+        match self.spec.target {
+            Some(target) => format!("{}/{}", self.count, target),
+            None => self.count.to_string(),
+        }
     }
 }
 
