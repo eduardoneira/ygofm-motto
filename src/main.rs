@@ -1,9 +1,195 @@
+use std::collections::HashMap;
 use std::error::Error;
+use std::fs;
 use std::io::{self, Write};
 
-use ygofm_motto::CardDatabase;
+use eframe::egui::{self, TextureHandle};
+use ygofm_motto::{Card, CardDatabase, TrackedCardSpec, bundled_tracked_card_specs};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    if std::env::args().any(|argument| argument == "--cli") {
+        return run_cli();
+    }
+
+    let database = CardDatabase::from_bundled_csv()?;
+    let tracker = CardTrackerApp::from_database(database);
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size([860.0, 620.0]),
+        ..Default::default()
+    };
+
+    eframe::run_native(
+        "YGOFM Card Tracker",
+        options,
+        Box::new(|_creation_context| Ok(Box::new(tracker))),
+    )?;
+
+    Ok(())
+}
+
+#[derive(Debug, Clone)]
+struct TrackedCard {
+    spec: TrackedCardSpec,
+    card: Card,
+    count: u32,
+}
+
+struct CardTrackerApp {
+    tracked_cards: Vec<TrackedCard>,
+    card_images: HashMap<u16, Option<TextureHandle>>,
+    missing_card_ids: Vec<u16>,
+    load_error: Option<String>,
+}
+
+impl CardTrackerApp {
+    fn from_database(database: CardDatabase) -> Self {
+        let mut missing_card_ids = Vec::new();
+
+        let specs = match bundled_tracked_card_specs() {
+            Ok(specs) => specs,
+            Err(error) => {
+                return Self {
+                    tracked_cards: Vec::new(),
+                    card_images: HashMap::new(),
+                    missing_card_ids,
+                    load_error: Some(error.to_string()),
+                };
+            }
+        };
+
+        let tracked_cards = specs
+            .into_iter()
+            .filter_map(|spec| {
+                let card_id = spec.id;
+                match database.card(card_id).cloned() {
+                    Some(card) => Some(TrackedCard {
+                        spec,
+                        card,
+                        count: 0,
+                    }),
+                    None => {
+                        missing_card_ids.push(card_id);
+                        None
+                    }
+                }
+            })
+            .collect();
+
+        Self {
+            tracked_cards,
+            card_images: HashMap::new(),
+            missing_card_ids,
+            load_error: None,
+        }
+    }
+
+    fn ensure_card_images_loaded(&mut self, context: &egui::Context) {
+        for tracked_card in &self.tracked_cards {
+            let card_id = tracked_card.card.id;
+            if !self.card_images.contains_key(&card_id) {
+                self.card_images
+                    .insert(card_id, load_card_image(context, card_id));
+            }
+        }
+    }
+}
+
+impl eframe::App for CardTrackerApp {
+    fn update(&mut self, context: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(context, |ui| {
+            if let Some(load_error) = &self.load_error {
+                ui.colored_label(
+                    egui::Color32::from_rgb(190, 46, 46),
+                    format!("Could not load tracked cards JSON: {load_error}"),
+                );
+                return;
+            }
+
+            if !self.missing_card_ids.is_empty() {
+                let missing_ids = self
+                    .missing_card_ids
+                    .iter()
+                    .map(|id| format!("#{id:03}"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                ui.colored_label(
+                    egui::Color32::from_rgb(190, 119, 0),
+                    format!("Ignored unknown tracked card ids: {missing_ids}"),
+                );
+                ui.add_space(8.0);
+            }
+
+            if self.tracked_cards.is_empty() {
+                ui.label("No tracked cards were configured in data/tracked_cards.json.");
+                return;
+            }
+
+            self.ensure_card_images_loaded(context);
+
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                egui::Grid::new("tracked_cards_grid")
+                    .num_columns(4)
+                    .spacing([16.0, 10.0])
+                    .striped(true)
+                    .show(ui, |ui| {
+                        for tracked_card in &mut self.tracked_cards {
+                            let title = tracked_card.title();
+                            if let Some(Some(texture)) = self.card_images.get(&tracked_card.card.id)
+                            {
+                                ui.image((texture.id(), egui::vec2(42.0, 60.0)));
+                            } else {
+                                ui.allocate_exact_size(
+                                    egui::vec2(42.0, 60.0),
+                                    egui::Sense::hover(),
+                                );
+                            }
+                            ui.label(title);
+                            ui.label(tracked_card.count.to_string());
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .add_enabled(tracked_card.count > 0, egui::Button::new("-"))
+                                    .clicked()
+                                {
+                                    tracked_card.count -= 1;
+                                }
+
+                                if ui.button("+").clicked() {
+                                    tracked_card.count += 1;
+                                }
+                            });
+                            ui.end_row();
+                        }
+                    });
+            });
+        });
+    }
+}
+
+fn load_card_image(context: &egui::Context, card_id: u16) -> Option<TextureHandle> {
+    let image_path = format!("assets/cards/{card_id:03}.webp");
+    let image_bytes = fs::read(image_path).ok()?;
+    let decoded_image = image::load_from_memory(&image_bytes).ok()?;
+    let rgba_image = decoded_image.to_rgba8();
+    let size = [rgba_image.width() as usize, rgba_image.height() as usize];
+    let color_image = egui::ColorImage::from_rgba_unmultiplied(size, rgba_image.as_raw());
+
+    Some(context.load_texture(
+        format!("card-{card_id:03}"),
+        color_image,
+        egui::TextureOptions::LINEAR,
+    ))
+}
+
+impl TrackedCard {
+    fn title(&self) -> String {
+        self.spec
+            .label
+            .clone()
+            .unwrap_or_else(|| format!("#{:03} {}", self.card.id, self.card.name))
+    }
+}
+
+fn run_cli() -> Result<(), Box<dyn Error>> {
     let database = CardDatabase::from_bundled_csv()?;
 
     println!(

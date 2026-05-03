@@ -4,6 +4,13 @@
 # macOS
 .DS_Store
 
+# Downloaded card image assets
+/assets/cards/*
+!/assets/cards/.gitkeep
+
+# Pycache
+scripts/__pycache__
+
 # Editor folders, optional
 .vscode/
 .idea/

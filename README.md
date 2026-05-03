@@ -1,13 +1,45 @@
 # ygofm-motto
 
-Console tools for simulating Yu-Gi-Oh! Forbidden Memories duels.
+Tools for simulating Yu-Gi-Oh! Forbidden Memories duels.
 
-## Card lookup
+## Card tracker
 
-Run the first card lookup app with:
+Run the card tracker GUI with:
 
 ```bash
 cargo run
+```
+
+The tracked cards are configured in `data/tracked_cards.json`:
+
+```json
+{
+  "cards": [
+    { "id": 1, "target": 3 },
+    { "id": 35, "label": "Dark Magician copies", "target": 3 }
+  ]
+}
+```
+
+Each row in the GUI has a button to add one copy and a button to remove one copy.
+If `assets/cards/NNN.webp` exists for a tracked card number, the GUI displays it in that row.
+
+Download or refresh card images with:
+
+```bash
+python3 scripts/download_card_images.py
+```
+
+The downloader uses the Yu-Gi-Oh! Wiki / Fandom MediaWiki API, skips existing files,
+waits one second between requests by default, and writes source metadata to
+`assets/cards/sources.json`. Use `--dry-run --limit 3` to test without downloading.
+
+## Card lookup
+
+Run the console lookup app with:
+
+```bash
+cargo run -- --cli
 ```
 
 Then use one of the console commands:
