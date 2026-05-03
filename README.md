@@ -10,7 +10,8 @@ Run the card tracker GUI with:
 cargo run
 ```
 
-The tracked cards are configured in `data/tracked_cards.json`:
+The tracked cards are configured in `data/tracked_cards.json`. Create the file with
+this shape, or edit the existing one:
 
 ```json
 {
@@ -21,8 +22,17 @@ The tracked cards are configured in `data/tracked_cards.json`:
 }
 ```
 
+Use card ids from `data/cards.csv`. `label` is optional; when it is missing, the GUI
+uses the card number and card name. `target` is optional and defaults to `3`; it sets
+the maximum value for that card's counter.
+
+The GUI reads `data/tracked_cards.json` when it starts, so save the file and restart
+`cargo run` after changing the tracked cards. If the file is missing, the app falls
+back to the tracked cards bundled at build time.
+
 Each card in the GUI is shown as an art-only image tile with minus, counter, and plus
-controls below it. The counter is capped at 3, and hovering the image shows the card name.
+controls below it. The counter is capped by the card's `target`, and hovering the image
+shows the card name or custom label.
 If `assets/cards/NNN.webp` exists for a tracked card number, the GUI displays it.
 
 ## Card images
