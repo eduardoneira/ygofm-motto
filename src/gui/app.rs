@@ -7,6 +7,7 @@ use ygofm_motto::{
 };
 
 use super::images::{CardImageCache, GroupImageCache};
+use super::layout::TrackerGridLayout;
 use super::widgets::{card_art_uv, draw_tracker_control};
 
 const DEFAULT_CARD_TARGET: u32 = 3;
@@ -14,15 +15,16 @@ const DEFAULT_CARD_TARGET: u32 = 3;
 pub fn run_card_tracker() -> Result<(), Box<dyn Error>> {
     let database = CardDatabase::from_bundled_csv()?;
     let tracker = CardTrackerApp::from_database(database);
+    let initial_window_size = tracker.initial_window_size();
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([860.0, 620.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size(initial_window_size),
         ..Default::default()
     };
 
     eframe::run_native(
         "YGOFM Card Tracker",
         options,
-        Box::new(|_creation_context| Ok(Box::new(tracker))),
+        Box::new(move |_creation_context| Ok(Box::new(tracker))),
     )?;
 
     Ok(())
@@ -44,6 +46,8 @@ pub(super) struct TrackedGroup {
 struct CardTrackerApp {
     tracked_cards: Vec<TrackedCard>,
     tracked_groups: Vec<TrackedGroup>,
+    tracker_layout: TrackerGridLayout,
+    did_request_compact_window_size: bool,
     card_images: CardImageCache,
     group_images: GroupImageCache,
     missing_card_ids: Vec<u16>,
@@ -60,6 +64,8 @@ impl CardTrackerApp {
                 return Self {
                     tracked_cards: Vec::new(),
                     tracked_groups: Vec::new(),
+                    tracker_layout: TrackerGridLayout::new(1, 1),
+                    did_request_compact_window_size: true,
                     card_images: CardImageCache::new(),
                     group_images: GroupImageCache::new(),
                     missing_card_ids,
@@ -95,11 +101,58 @@ impl CardTrackerApp {
         Self {
             tracked_cards,
             tracked_groups,
+            tracker_layout: TrackerGridLayout::new(
+                tracked_cards_file.layout.columns(),
+                tracked_cards_file.layout.rows(),
+            ),
+            did_request_compact_window_size: false,
             card_images: CardImageCache::new(),
             group_images: GroupImageCache::new(),
             missing_card_ids,
             load_error: None,
         }
+    }
+
+    fn initial_window_size(&self) -> egui::Vec2 {
+        self.tracker_layout
+            .initial_window_size(self.tracker_count())
+    }
+
+    fn tracker_count(&self) -> usize {
+        self.tracked_cards.len() + self.tracked_groups.len()
+    }
+
+    fn request_compact_window_size_once(
+        &mut self,
+        context: &egui::Context,
+        compact_window_size: egui::Vec2,
+    ) {
+        if self.did_request_compact_window_size {
+            return;
+        }
+
+        self.did_request_compact_window_size = true;
+
+        let target_size = context.input(|input| {
+            input
+                .viewport()
+                .monitor_size
+                .map_or(compact_window_size, |monitor_size| {
+                    egui::vec2(
+                        compact_window_size.x.min(monitor_size.x),
+                        compact_window_size.y.min(monitor_size.y),
+                    )
+                })
+        });
+
+        let current_size =
+            context.input(|input| input.viewport().inner_rect.map(|rect| rect.size()));
+
+        if current_size.is_some_and(|current_size| sizes_are_close(current_size, target_size)) {
+            return;
+        }
+
+        context.send_viewport_cmd(egui::ViewportCommand::InnerSize(target_size));
     }
 }
 
@@ -133,49 +186,71 @@ impl eframe::App for CardTrackerApp {
                 return;
             }
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(14.0, 14.0);
+            let metrics = self
+                .tracker_layout
+                .metrics_for_available_size(ui.available_size(), self.tracker_count());
+            self.request_compact_window_size_once(context, metrics.compact_window_size);
 
-                    for tracked_card in &mut self.tracked_cards {
-                        let title = tracked_card.title();
-                        let target = tracked_card.target();
-                        let fallback_label = format!("#{:03}", tracked_card.card.id);
-                        let texture = self.card_images.texture_for(context, tracked_card.card.id);
-                        draw_tracker_control(
-                            ui,
-                            texture,
-                            &mut tracked_card.count,
-                            Some(target),
-                            title,
-                            fallback_label,
-                            Some(card_art_uv()),
-                        );
-                    }
+            egui::ScrollArea::both().show(ui, |ui| {
+                egui::Grid::new("tracked_cards_grid")
+                    .num_columns(metrics.columns)
+                    .spacing(metrics.spacing)
+                    .show(ui, |ui| {
+                        let mut tracker_index = 0;
+                        for tracked_card in &mut self.tracked_cards {
+                            let title = tracked_card.title();
+                            let target = tracked_card.target();
+                            let fallback_label = format!("#{:03}", tracked_card.card.id);
+                            let texture =
+                                self.card_images.texture_for(context, tracked_card.card.id);
+                            draw_tracker_control(
+                                ui,
+                                metrics.control_style,
+                                texture,
+                                &mut tracked_card.count,
+                                Some(target),
+                                title,
+                                fallback_label,
+                                Some(card_art_uv()),
+                            );
+                            tracker_index += 1;
+                            if tracker_index % metrics.columns == 0 {
+                                ui.end_row();
+                            }
+                        }
 
-                    for tracked_group in &mut self.tracked_groups {
-                        let title = tracked_group.title();
-                        let fallback_label = tracked_group.fallback_label();
-                        let image_uv = tracked_group.image_uv();
-                        let texture = self.group_images.texture_for(
-                            context,
-                            &tracked_group.spec.id,
-                            tracked_group.spec.image.as_deref(),
-                        );
-                        draw_tracker_control(
-                            ui,
-                            texture,
-                            &mut tracked_group.count,
-                            None,
-                            title,
-                            fallback_label,
-                            image_uv,
-                        );
-                    }
-                });
+                        for tracked_group in &mut self.tracked_groups {
+                            let title = tracked_group.title();
+                            let fallback_label = tracked_group.fallback_label();
+                            let image_uv = tracked_group.image_uv();
+                            let texture = self.group_images.texture_for(
+                                context,
+                                &tracked_group.spec.id,
+                                tracked_group.spec.image.as_deref(),
+                            );
+                            draw_tracker_control(
+                                ui,
+                                metrics.control_style,
+                                texture,
+                                &mut tracked_group.count,
+                                None,
+                                title,
+                                fallback_label,
+                                image_uv,
+                            );
+                            tracker_index += 1;
+                            if tracker_index % metrics.columns == 0 {
+                                ui.end_row();
+                            }
+                        }
+                    });
             });
         });
     }
+}
+
+fn sizes_are_close(left: egui::Vec2, right: egui::Vec2) -> bool {
+    (left - right).abs().max_elem() < 2.0
 }
 
 impl TrackedCard {
