@@ -156,6 +156,7 @@ impl eframe::App for CardTrackerApp {
                     for tracked_group in &mut self.tracked_groups {
                         let title = tracked_group.title();
                         let fallback_label = tracked_group.fallback_label();
+                        let image_uv = tracked_group.image_uv();
                         let texture = self.group_images.texture_for(
                             context,
                             &tracked_group.spec.id,
@@ -168,7 +169,7 @@ impl eframe::App for CardTrackerApp {
                             None,
                             title,
                             fallback_label,
-                            None,
+                            image_uv,
                         );
                     }
                 });
@@ -197,5 +198,16 @@ impl TrackedGroup {
 
     fn fallback_label(&self) -> String {
         self.spec.name.clone()
+    }
+
+    fn image_uv(&self) -> Option<egui::Rect> {
+        let image_path = self.spec.image.as_deref()?;
+        let normalized_path = image_path.replace('\\', "/");
+
+        if normalized_path.starts_with("assets/cards/") {
+            Some(card_art_uv())
+        } else {
+            None
+        }
     }
 }
