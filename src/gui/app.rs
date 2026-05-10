@@ -47,6 +47,7 @@ struct CardTrackerApp {
     tracked_cards: Vec<TrackedCard>,
     tracked_groups: Vec<TrackedGroup>,
     tracker_layout: TrackerGridLayout,
+    did_request_compact_window_size: bool,
     card_images: CardImageCache,
     group_images: GroupImageCache,
     missing_card_ids: Vec<u16>,
@@ -64,6 +65,7 @@ impl CardTrackerApp {
                     tracked_cards: Vec::new(),
                     tracked_groups: Vec::new(),
                     tracker_layout: TrackerGridLayout::new(1, 1),
+                    did_request_compact_window_size: true,
                     card_images: CardImageCache::new(),
                     group_images: GroupImageCache::new(),
                     missing_card_ids,
@@ -103,6 +105,7 @@ impl CardTrackerApp {
                 tracked_cards_file.layout.columns(),
                 tracked_cards_file.layout.rows(),
             ),
+            did_request_compact_window_size: false,
             card_images: CardImageCache::new(),
             group_images: GroupImageCache::new(),
             missing_card_ids,
@@ -112,6 +115,39 @@ impl CardTrackerApp {
 
     fn initial_window_size(&self) -> egui::Vec2 {
         self.tracker_layout.initial_window_size()
+    }
+
+    fn request_compact_window_size_once(
+        &mut self,
+        context: &egui::Context,
+        compact_window_size: egui::Vec2,
+    ) {
+        if self.did_request_compact_window_size {
+            return;
+        }
+
+        self.did_request_compact_window_size = true;
+
+        let target_size = context.input(|input| {
+            input
+                .viewport()
+                .monitor_size
+                .map_or(compact_window_size, |monitor_size| {
+                    egui::vec2(
+                        compact_window_size.x.min(monitor_size.x),
+                        compact_window_size.y.min(monitor_size.y),
+                    )
+                })
+        });
+
+        let current_size =
+            context.input(|input| input.viewport().inner_rect.map(|rect| rect.size()));
+
+        if current_size.is_some_and(|current_size| sizes_are_close(current_size, target_size)) {
+            return;
+        }
+
+        context.send_viewport_cmd(egui::ViewportCommand::InnerSize(target_size));
     }
 }
 
@@ -148,6 +184,7 @@ impl eframe::App for CardTrackerApp {
             let metrics = self
                 .tracker_layout
                 .metrics_for_available_size(ui.available_size());
+            self.request_compact_window_size_once(context, metrics.compact_window_size);
 
             egui::ScrollArea::vertical().show(ui, |ui| {
                 egui::Grid::new("tracked_cards_grid")
@@ -205,6 +242,10 @@ impl eframe::App for CardTrackerApp {
             });
         });
     }
+}
+
+fn sizes_are_close(left: egui::Vec2, right: egui::Vec2) -> bool {
+    (left - right).abs().max_elem() < 2.0
 }
 
 impl TrackedCard {

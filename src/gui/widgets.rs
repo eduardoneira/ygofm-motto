@@ -31,6 +31,10 @@ impl TrackerControlStyle {
     pub(super) fn scale(&self) -> f32 {
         self.scale
     }
+
+    pub(super) fn control_size(&self) -> egui::Vec2 {
+        self.control_size
+    }
 }
 
 pub(super) fn draw_tracker_control(

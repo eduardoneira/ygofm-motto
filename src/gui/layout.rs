@@ -17,6 +17,7 @@ pub(super) struct TrackerGridMetrics {
     pub(super) columns: usize,
     pub(super) spacing: egui::Vec2,
     pub(super) control_style: TrackerControlStyle,
+    pub(super) compact_window_size: egui::Vec2,
 }
 
 impl TrackerGridLayout {
@@ -37,10 +38,20 @@ impl TrackerGridLayout {
     ) -> TrackerGridMetrics {
         let scale = self.scale_for_available_size(available_size);
 
+        let control_style = TrackerControlStyle::scaled(scale);
+        let spacing = egui::Vec2::splat(NATURAL_GRID_SPACING * scale);
+        let compact_content_size = grid_size(
+            control_style.control_size(),
+            spacing.x,
+            self.columns,
+            self.visible_rows,
+        );
+
         TrackerGridMetrics {
             columns: self.columns,
-            spacing: egui::Vec2::splat(NATURAL_GRID_SPACING * scale),
-            control_style: TrackerControlStyle::scaled(scale),
+            spacing,
+            control_style,
+            compact_window_size: compact_content_size + WINDOW_PADDING,
         }
     }
 
@@ -104,6 +115,15 @@ mod tests {
 
         assert!(metrics.control_style.scale() < 1.0);
         assert!(metrics.control_style.scale() >= MIN_TRACKER_SCALE);
+    }
+
+    #[test]
+    fn compact_window_size_shrinks_with_the_scale() {
+        let layout = TrackerGridLayout::new(5, 6);
+        let metrics = layout.metrics_for_available_size(layout.initial_window_size() / 2.0);
+
+        assert!(metrics.compact_window_size.x < layout.initial_window_size().x);
+        assert!(metrics.compact_window_size.y < layout.initial_window_size().y);
     }
 
     #[test]
