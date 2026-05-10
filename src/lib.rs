@@ -14,7 +14,8 @@ pub use database::{
 };
 pub use labels::{attribute_name, card_type_name, guardian_star_name};
 pub use tracker::{
-    BUNDLED_TRACKED_CARDS_JSON, TRACKED_CARDS_PATH, TrackedCardSpec, TrackedCardsLoadError,
-    bundled_tracked_card_specs, tracked_card_specs_from_file_or_bundled,
-    tracked_card_specs_from_json,
+    BUNDLED_TRACKED_CARDS_JSON, TRACKED_CARDS_PATH, TrackedCardSpec, TrackedCardsFile,
+    TrackedCardsLoadError, TrackedGroupSpec, bundled_tracked_card_specs,
+    tracked_card_specs_from_file_or_bundled, tracked_card_specs_from_json,
+    tracked_cards_file_from_file_or_bundled, tracked_cards_file_from_json,
 };

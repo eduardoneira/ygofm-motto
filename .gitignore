@@ -7,6 +7,8 @@
 # Downloaded card image assets
 /assets/cards/*
 !/assets/cards/.gitkeep
+/assets/groups/*
+!/assets/groups/.gitkeep
 
 # Pycache
 scripts/__pycache__
