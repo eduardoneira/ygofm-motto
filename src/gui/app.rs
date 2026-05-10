@@ -114,7 +114,12 @@ impl CardTrackerApp {
     }
 
     fn initial_window_size(&self) -> egui::Vec2 {
-        self.tracker_layout.initial_window_size()
+        self.tracker_layout
+            .initial_window_size(self.tracker_count())
+    }
+
+    fn tracker_count(&self) -> usize {
+        self.tracked_cards.len() + self.tracked_groups.len()
     }
 
     fn request_compact_window_size_once(
@@ -183,10 +188,10 @@ impl eframe::App for CardTrackerApp {
 
             let metrics = self
                 .tracker_layout
-                .metrics_for_available_size(ui.available_size());
+                .metrics_for_available_size(ui.available_size(), self.tracker_count());
             self.request_compact_window_size_once(context, metrics.compact_window_size);
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
+            egui::ScrollArea::both().show(ui, |ui| {
                 egui::Grid::new("tracked_cards_grid")
                     .num_columns(metrics.columns)
                     .spacing(metrics.spacing)
