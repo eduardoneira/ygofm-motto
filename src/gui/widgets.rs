@@ -1,24 +1,27 @@
 use eframe::egui::{self, TextureHandle};
 
-use super::app::TrackedCard;
-
 const CARD_ART_SIZE: egui::Vec2 = egui::vec2(132.0, 124.0);
 const CARD_COUNTER_WIDTH: f32 = 24.0;
 const CARD_COUNTER_BUTTON_SIZE: egui::Vec2 = egui::vec2(28.0, 24.0);
 
-pub(super) fn draw_card_control(
+pub(super) fn draw_tracker_control(
     ui: &mut egui::Ui,
     texture: Option<&TextureHandle>,
-    tracked_card: &mut TrackedCard,
+    count: &mut u32,
+    max_count: Option<u32>,
     title: String,
+    fallback_label: String,
+    image_uv: Option<egui::Rect>,
 ) {
     ui.allocate_ui_with_layout(
         egui::vec2(CARD_ART_SIZE.x, CARD_ART_SIZE.y + 34.0),
         egui::Layout::top_down(egui::Align::Center),
         |ui| {
-            tracked_card.count = tracked_card.count.min(tracked_card.target());
+            if let Some(max_count) = max_count {
+                *count = (*count).min(max_count);
+            }
 
-            let response = draw_card_tile(ui, texture, tracked_card);
+            let response = draw_tracker_tile(ui, texture, fallback_label, image_uv);
             response.on_hover_text(title);
 
             ui.horizontal(|ui| {
@@ -30,40 +33,52 @@ pub(super) fn draw_card_control(
 
                 if ui
                     .add_enabled(
-                        tracked_card.count > 0,
+                        *count > 0,
                         egui::Button::new("-").min_size(CARD_COUNTER_BUTTON_SIZE),
                     )
                     .clicked()
                 {
-                    tracked_card.count -= 1;
+                    *count -= 1;
                 }
 
                 ui.add_sized(
                     egui::vec2(CARD_COUNTER_WIDTH, CARD_COUNTER_BUTTON_SIZE.y),
-                    egui::Label::new(tracked_card.count_label()),
+                    egui::Label::new(count.to_string()),
                 );
 
                 if ui
                     .add_enabled(
-                        tracked_card.count < tracked_card.target(),
+                        max_count.is_none_or(|max_count| *count < max_count),
                         egui::Button::new("+").min_size(CARD_COUNTER_BUTTON_SIZE),
                     )
                     .clicked()
                 {
-                    tracked_card.count += 1;
+                    *count += 1;
                 }
             });
         },
     );
 }
 
-fn draw_card_tile(
+pub(super) fn card_art_uv() -> egui::Rect {
+    egui::Rect::from_min_max(egui::pos2(0.12, 0.25), egui::pos2(0.90, 0.76))
+}
+
+fn draw_tracker_tile(
     ui: &mut egui::Ui,
     texture: Option<&TextureHandle>,
-    tracked_card: &TrackedCard,
+    fallback_label: String,
+    image_uv: Option<egui::Rect>,
 ) -> egui::Response {
     match texture {
-        Some(texture) => ui.add(egui::Image::new((texture.id(), CARD_ART_SIZE)).uv(card_art_uv())),
+        Some(texture) => {
+            let image = egui::Image::new((texture.id(), CARD_ART_SIZE));
+            if let Some(image_uv) = image_uv {
+                ui.add(image.uv(image_uv))
+            } else {
+                ui.add(image)
+            }
+        }
         None => {
             let (rect, response) = ui.allocate_exact_size(CARD_ART_SIZE, egui::Sense::hover());
             ui.painter()
@@ -77,7 +92,7 @@ fn draw_card_tile(
             ui.painter().text(
                 rect.center(),
                 egui::Align2::CENTER_CENTER,
-                format!("#{:03}", tracked_card.card.id),
+                compact_tile_label(&fallback_label),
                 egui::TextStyle::Button.resolve(ui.style()),
                 ui.visuals().weak_text_color(),
             );
@@ -86,6 +101,12 @@ fn draw_card_tile(
     }
 }
 
-fn card_art_uv() -> egui::Rect {
-    egui::Rect::from_min_max(egui::pos2(0.12, 0.25), egui::pos2(0.90, 0.76))
+fn compact_tile_label(label: &str) -> String {
+    const MAX_CHARS: usize = 16;
+
+    if label.chars().count() <= MAX_CHARS {
+        return label.to_owned();
+    }
+
+    label.chars().take(MAX_CHARS - 2).collect::<String>() + ".."
 }

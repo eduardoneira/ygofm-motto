@@ -10,7 +10,10 @@ pub const BUNDLED_TRACKED_CARDS_JSON: &str = include_str!("../data/tracked_cards
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct TrackedCardsFile {
+    #[serde(default)]
     pub cards: Vec<TrackedCardSpec>,
+    #[serde(default)]
+    pub groups: Vec<TrackedGroupSpec>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -22,10 +25,24 @@ pub struct TrackedCardSpec {
     pub target: Option<u32>,
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct TrackedGroupSpec {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub image: Option<String>,
+}
+
+pub fn tracked_cards_file_from_json(
+    json_data: &str,
+) -> Result<TrackedCardsFile, serde_json::Error> {
+    serde_json::from_str::<TrackedCardsFile>(json_data)
+}
+
 pub fn tracked_card_specs_from_json(
     json_data: &str,
 ) -> Result<Vec<TrackedCardSpec>, serde_json::Error> {
-    serde_json::from_str::<TrackedCardsFile>(json_data).map(|tracked_cards| tracked_cards.cards)
+    tracked_cards_file_from_json(json_data).map(|tracked_cards| tracked_cards.cards)
 }
 
 #[derive(Debug)]
@@ -59,6 +76,12 @@ impl std::error::Error for TrackedCardsLoadError {
 pub fn tracked_card_specs_from_file_or_bundled(
     path: impl AsRef<Path>,
 ) -> Result<Vec<TrackedCardSpec>, TrackedCardsLoadError> {
+    tracked_cards_file_from_file_or_bundled(path).map(|tracked_cards| tracked_cards.cards)
+}
+
+pub fn tracked_cards_file_from_file_or_bundled(
+    path: impl AsRef<Path>,
+) -> Result<TrackedCardsFile, TrackedCardsLoadError> {
     let path = path.as_ref();
     let json_data = match fs::read_to_string(path) {
         Ok(json_data) => json_data,
@@ -73,7 +96,7 @@ pub fn tracked_card_specs_from_file_or_bundled(
         }
     };
 
-    tracked_card_specs_from_json(&json_data)
+    tracked_cards_file_from_json(&json_data)
         .map_err(|source| TrackedCardsLoadError::Parse { source })
 }
 
@@ -102,6 +125,34 @@ mod tests {
         assert_eq!(specs[0].id, 1);
         assert_eq!(specs[0].target, Some(3));
         assert_eq!(specs[1].label.as_deref(), Some("Starter"));
+    }
+
+    #[test]
+    fn parses_tracked_groups_from_json() {
+        let tracked_cards = tracked_cards_file_from_json(
+            r#"{
+                "cards": [
+                    { "id": 1, "target": 3 }
+                ],
+                "groups": [
+                    {
+                        "id": "thunders",
+                        "name": "Thunders",
+                        "image": "assets/groups/thunders.webp"
+                    }
+                ]
+            }"#,
+        )
+        .expect("tracked cards file should parse");
+
+        assert_eq!(tracked_cards.cards.len(), 1);
+        assert_eq!(tracked_cards.groups.len(), 1);
+        assert_eq!(tracked_cards.groups[0].id, "thunders");
+        assert_eq!(tracked_cards.groups[0].name, "Thunders");
+        assert_eq!(
+            tracked_cards.groups[0].image.as_deref(),
+            Some("assets/groups/thunders.webp")
+        );
     }
 
     #[test]

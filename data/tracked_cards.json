@@ -5,5 +5,12 @@
     { "id": 44, "target": 3 },
     { "id": 351, "target": 3 },
     { "id": 657, "target": 1 }
+  ],
+  "groups": [
+    {
+      "id": "thunders",
+      "name": "Thunders",
+      "image": "assets/cards/002.webp"
+    }
   ]
 }
