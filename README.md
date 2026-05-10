@@ -35,7 +35,9 @@ this shape, or edit the existing one:
 
 `layout` is optional. `columns` sets how many trackers are shown per row, while
 `rows` sets the initial window height in tracker rows. Tracker tiles keep the same
-size; increasing or decreasing these values changes the starting UI width and height.
+natural size when they fit, and scale down together when needed so the requested
+rows and columns stay inside the available window. If the requested layout is still
+too large at the minimum readable scale, the tracker area scrolls.
 
 Use card ids from `data/cards.csv`. `label` is optional; when it is missing, the GUI
 uses the card number and card name. `target` is optional and defaults to `3`; it sets

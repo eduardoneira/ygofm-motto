@@ -1,7 +1,7 @@
 {
   "layout": {
     "columns": 2,
-    "rows": 5
+    "rows": 10
   },
   "cards": [
     { "id": 1, "target": 3 },

@@ -7,11 +7,10 @@ use ygofm_motto::{
 };
 
 use super::images::{CardImageCache, GroupImageCache};
-use super::widgets::{TRACKER_CONTROL_SIZE, card_art_uv, draw_tracker_control};
+use super::layout::TrackerGridLayout;
+use super::widgets::{card_art_uv, draw_tracker_control};
 
 const DEFAULT_CARD_TARGET: u32 = 3;
-const TRACKER_GRID_SPACING: f32 = 14.0;
-const TRACKER_WINDOW_PADDING: egui::Vec2 = egui::vec2(32.0, 40.0);
 
 pub fn run_card_tracker() -> Result<(), Box<dyn Error>> {
     let database = CardDatabase::from_bundled_csv()?;
@@ -47,8 +46,7 @@ pub(super) struct TrackedGroup {
 struct CardTrackerApp {
     tracked_cards: Vec<TrackedCard>,
     tracked_groups: Vec<TrackedGroup>,
-    tracker_columns: usize,
-    tracker_rows: usize,
+    tracker_layout: TrackerGridLayout,
     card_images: CardImageCache,
     group_images: GroupImageCache,
     missing_card_ids: Vec<u16>,
@@ -65,8 +63,7 @@ impl CardTrackerApp {
                 return Self {
                     tracked_cards: Vec::new(),
                     tracked_groups: Vec::new(),
-                    tracker_columns: Default::default(),
-                    tracker_rows: Default::default(),
+                    tracker_layout: TrackerGridLayout::new(1, 1),
                     card_images: CardImageCache::new(),
                     group_images: GroupImageCache::new(),
                     missing_card_ids,
@@ -102,8 +99,10 @@ impl CardTrackerApp {
         Self {
             tracked_cards,
             tracked_groups,
-            tracker_columns: tracked_cards_file.layout.columns(),
-            tracker_rows: tracked_cards_file.layout.rows(),
+            tracker_layout: TrackerGridLayout::new(
+                tracked_cards_file.layout.columns(),
+                tracked_cards_file.layout.rows(),
+            ),
             card_images: CardImageCache::new(),
             group_images: GroupImageCache::new(),
             missing_card_ids,
@@ -112,17 +111,7 @@ impl CardTrackerApp {
     }
 
     fn initial_window_size(&self) -> egui::Vec2 {
-        let columns = self.tracker_columns.max(1) as f32;
-        let rows = self.tracker_rows.max(1) as f32;
-
-        egui::vec2(
-            TRACKER_CONTROL_SIZE.x * columns
-                + TRACKER_GRID_SPACING * (columns - 1.0)
-                + TRACKER_WINDOW_PADDING.x,
-            TRACKER_CONTROL_SIZE.y * rows
-                + TRACKER_GRID_SPACING * (rows - 1.0)
-                + TRACKER_WINDOW_PADDING.y,
-        )
+        self.tracker_layout.initial_window_size()
     }
 }
 
@@ -156,10 +145,14 @@ impl eframe::App for CardTrackerApp {
                 return;
             }
 
+            let metrics = self
+                .tracker_layout
+                .metrics_for_available_size(ui.available_size());
+
             egui::ScrollArea::vertical().show(ui, |ui| {
                 egui::Grid::new("tracked_cards_grid")
-                    .num_columns(self.tracker_columns)
-                    .spacing(egui::vec2(TRACKER_GRID_SPACING, TRACKER_GRID_SPACING))
+                    .num_columns(metrics.columns)
+                    .spacing(metrics.spacing)
                     .show(ui, |ui| {
                         let mut tracker_index = 0;
                         for tracked_card in &mut self.tracked_cards {
@@ -170,6 +163,7 @@ impl eframe::App for CardTrackerApp {
                                 self.card_images.texture_for(context, tracked_card.card.id);
                             draw_tracker_control(
                                 ui,
+                                metrics.control_style,
                                 texture,
                                 &mut tracked_card.count,
                                 Some(target),
@@ -178,7 +172,7 @@ impl eframe::App for CardTrackerApp {
                                 Some(card_art_uv()),
                             );
                             tracker_index += 1;
-                            if tracker_index % self.tracker_columns == 0 {
+                            if tracker_index % metrics.columns == 0 {
                                 ui.end_row();
                             }
                         }
@@ -194,6 +188,7 @@ impl eframe::App for CardTrackerApp {
                             );
                             draw_tracker_control(
                                 ui,
+                                metrics.control_style,
                                 texture,
                                 &mut tracked_group.count,
                                 None,
@@ -202,7 +197,7 @@ impl eframe::App for CardTrackerApp {
                                 image_uv,
                             );
                             tracker_index += 1;
-                            if tracker_index % self.tracker_columns == 0 {
+                            if tracker_index % metrics.columns == 0 {
                                 ui.end_row();
                             }
                         }
