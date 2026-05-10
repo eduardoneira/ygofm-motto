@@ -3,6 +3,8 @@ use eframe::egui::{self, TextureHandle};
 const CARD_ART_SIZE: egui::Vec2 = egui::vec2(132.0, 124.0);
 const CARD_COUNTER_WIDTH: f32 = 24.0;
 const CARD_COUNTER_BUTTON_SIZE: egui::Vec2 = egui::vec2(28.0, 24.0);
+pub(super) const TRACKER_CONTROL_SIZE: egui::Vec2 =
+    egui::vec2(CARD_ART_SIZE.x, CARD_ART_SIZE.y + 34.0);
 
 pub(super) fn draw_tracker_control(
     ui: &mut egui::Ui,
@@ -14,7 +16,7 @@ pub(super) fn draw_tracker_control(
     image_uv: Option<egui::Rect>,
 ) {
     ui.allocate_ui_with_layout(
-        egui::vec2(CARD_ART_SIZE.x, CARD_ART_SIZE.y + 34.0),
+        TRACKER_CONTROL_SIZE,
         egui::Layout::top_down(egui::Align::Center),
         |ui| {
             if let Some(max_count) = max_count {

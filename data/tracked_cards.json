@@ -1,4 +1,8 @@
 {
+  "layout": {
+    "columns": 2,
+    "rows": 5
+  },
   "cards": [
     { "id": 1, "target": 3 },
     { "id": 35, "target": 3 },

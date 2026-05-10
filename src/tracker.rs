@@ -7,13 +7,35 @@ use serde::Deserialize;
 
 pub const TRACKED_CARDS_PATH: &str = "data/tracked_cards.json";
 pub const BUNDLED_TRACKED_CARDS_JSON: &str = include_str!("../data/tracked_cards.json");
+pub const DEFAULT_TRACKER_COLUMNS: usize = 5;
+pub const DEFAULT_TRACKER_ROWS: usize = 3;
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct TrackedCardsFile {
     #[serde(default)]
+    pub layout: TrackedLayoutSpec,
+    #[serde(default)]
     pub cards: Vec<TrackedCardSpec>,
     #[serde(default)]
     pub groups: Vec<TrackedGroupSpec>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+pub struct TrackedLayoutSpec {
+    #[serde(default)]
+    pub columns: Option<usize>,
+    #[serde(default)]
+    pub rows: Option<usize>,
+}
+
+impl TrackedLayoutSpec {
+    pub fn columns(&self) -> usize {
+        self.columns.unwrap_or(DEFAULT_TRACKER_COLUMNS).max(1)
+    }
+
+    pub fn rows(&self) -> usize {
+        self.rows.unwrap_or(DEFAULT_TRACKER_ROWS).max(1)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -153,6 +175,41 @@ mod tests {
             tracked_cards.groups[0].image.as_deref(),
             Some("assets/groups/thunders.webp")
         );
+    }
+
+    #[test]
+    fn parses_tracker_layout_from_json() {
+        let tracked_cards = tracked_cards_file_from_json(
+            r#"{
+                "layout": {
+                    "columns": 4,
+                    "rows": 2
+                },
+                "cards": [
+                    { "id": 1, "target": 3 }
+                ]
+            }"#,
+        )
+        .expect("tracked cards file should parse");
+
+        assert_eq!(tracked_cards.layout.columns(), 4);
+        assert_eq!(tracked_cards.layout.rows(), 2);
+    }
+
+    #[test]
+    fn defaults_and_clamps_tracker_layout_dimensions() {
+        let tracked_cards =
+            tracked_cards_file_from_json(r#"{ "layout": { "columns": 0, "rows": 0 } }"#)
+                .expect("tracked cards file should parse");
+
+        assert_eq!(tracked_cards.layout.columns(), 1);
+        assert_eq!(tracked_cards.layout.rows(), 1);
+
+        let tracked_cards = tracked_cards_file_from_json(r#"{ "cards": [{ "id": 1 }] }"#)
+            .expect("tracked cards file should parse");
+
+        assert_eq!(tracked_cards.layout.columns(), DEFAULT_TRACKER_COLUMNS);
+        assert_eq!(tracked_cards.layout.rows(), DEFAULT_TRACKER_ROWS);
     }
 
     #[test]
